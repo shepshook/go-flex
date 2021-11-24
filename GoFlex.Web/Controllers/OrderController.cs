@@ -17,7 +17,6 @@ namespace GoFlex.Web.Controllers
             _unitOfWork = unitOfWork;
         }
 
-        //todo: probably make a rest api version of this action with popup and move it to PaymentController
         [Authorize]
         [HttpPost("[controller]/[action]")]
         public IActionResult Confirm(int[] id, int?[] count)

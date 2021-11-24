@@ -18,5 +18,7 @@ namespace GoFlex.Web.Controllers
             var list = _unitOfWork.LocationRepository.All();
             return View(list);
         }
+
+        //todo: make a Location Details popup
     }
 }
