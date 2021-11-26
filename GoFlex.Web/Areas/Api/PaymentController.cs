@@ -3,8 +3,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using GoFlex.Core.Entities;
 using GoFlex.Core.Repositories.Abstractions;
+using GoFlex.Web.Services.Abstractions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using Serilog;
 using Stripe;
 using Stripe.Checkout;
 
@@ -14,24 +19,31 @@ namespace GoFlex.Web.Areas.Api
     [ApiController]
     public class PaymentController : ControllerBase
     {
-        //todo: move the key to configs
-        private const string WebhookSecret = "whsec_hEosIrhMeJ4SQPwjYRqJwcmniWqUo0NX";
+        private readonly string _webhookSecret;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ILogger _logger;
+        private readonly IConfiguration _configuration;
+        private readonly IMailService _mailService;
 
-        public PaymentController(IUnitOfWork unitOfWork)
+        public PaymentController(IUnitOfWork unitOfWork, IConfiguration configuration, ILogger logger, IMailService mailService)
         {
             _unitOfWork = unitOfWork;
+            _webhookSecret = configuration["Stripe:WebhookSecret"];
+            _logger = logger.ForContext<PaymentController>();
+            _configuration = configuration;
+            _mailService = mailService;
         }
 
-        [HttpPost("[area]/[controller]/[action]")]
+        [Authorize]
+        [HttpPost("[area]/[controller]/[action]/{id:int}")]
         public ActionResult Create(int id, string returnUrl = null)
         {
             var host = Request.Scheme + Uri.SchemeDelimiter + Request.Host;
 
             var order = _unitOfWork.OrderRepository.Get(id);
+            var user = _unitOfWork.UserRepository.Get(Guid.Parse(User.FindFirst("userId").Value));
 
-            //todo: verify that authenticated user's id == order.UserId
-            if (order == null)
+            if (order == null || user.Id != order.UserId)
                 return NotFound();
 
             var options = new SessionCreateOptions
@@ -56,22 +68,33 @@ namespace GoFlex.Web.Areas.Api
                 }).ToList(),
                 Mode = "payment",
                 SuccessUrl = host + Url.Action("Success", "Order"),
-                CancelUrl = host + Url.Action("Cancel", "Order")
+                CancelUrl = host + Url.Action("Cancel", "Order"),
+                CustomerEmail = user.Email
             };
 
             var service = new SessionService();
             var session = service.Create(options);
+            _logger.Here().Information("New order created: {@Items}", options.LineItems.Select(x => new
+            {
+                Name = x.PriceData.ProductData.Name,
+                Price = x.PriceData.UnitAmount,
+                Qty = x.Quantity
+            }));
+
             return new JsonResult(new {id = session.Id});
         }
 
-        [HttpPost("[area]/[controller]/[action]")]
-        public async Task<IActionResult> Complete()
+        [HttpPost("api/[action]")]
+        public async Task<IActionResult> Webhook()
         {
             var json = await new StreamReader(HttpContext.Request.Body).ReadToEndAsync();
 
             try
             {
-                var stripeEvent = EventUtility.ConstructEvent(json, Request.Headers["Stripe-Signature"], WebhookSecret);
+                var stripeEvent = EventUtility.ConstructEvent(json, Request.Headers["Stripe-Signature"], _webhookSecret);
+
+                _logger.Here().Information("Webhook activated for {@Event}", stripeEvent);
+
                 Session session;
 
                 switch (stripeEvent.Type)
@@ -91,13 +114,18 @@ namespace GoFlex.Web.Areas.Api
                         session = ExpandAsSession(stripeEvent);
                         NotifyCustomer(session);
                         break;
+
+                    default:
+                        _logger.Here().Warning("Webhook event type {Type} is not supported: {@Event}", stripeEvent.Type, stripeEvent);
+                        return BadRequest();
                 }
             }
             catch (StripeException e)
             {
-                //todo: log an attempt of payment faking
+                _logger.Here().Warning("Webhook caused an {@Exception}", e);
                 return BadRequest();
             }
+
             return Ok();
         }
 
@@ -114,16 +142,42 @@ namespace GoFlex.Web.Areas.Api
 
         private void CompleteOrder(Session session)
         {
-            //todo: compose an email message and send it to the customer
-            //todo: an idea to generate a !unique! QR code that can be then verified by our api
             var id = int.Parse(session.Metadata["OrderId"]);
             var order = _unitOfWork.OrderRepository.Get(id);
-            var email = session.Customer.Email;
+            var emailReceiver = order.User.Email;
+
+            _logger.Here().Information("Payment for order {Id} received from {Email}", order.Id, emailReceiver);
+
+            foreach (var item in order.Items)
+            {
+                foreach (var _ in Enumerable.Range(0, item.Quantity))
+                {
+                    var secret = new OrderItemSecret
+                    {
+                        OrderItemId = item.Id,
+                        Id = Guid.NewGuid(),
+                        IsUsed = false
+                    };
+                    _unitOfWork.OrderItemSecretRepository.Insert(secret);
+                }
+            }
+            _unitOfWork.Commit();
+
+            var path = Request.Scheme + "://" + Request.Host.ToUriComponent();
+            order = _unitOfWork.OrderRepository.Get(id);
+
+            _mailService.SendOrder(order, path, Url);
         }
 
         private void NotifyCustomer(Session session)
         {
             //todo: notify customer about failed payment by email
+
+            var id = int.Parse(session.Metadata["OrderId"]);
+            var order = _unitOfWork.OrderRepository.Get(id);
+            var email = session.Customer.Email;
+
+            _logger.Here().Warning("Payment for order {@Order} failed for {Email}", order, email);
         }
     }
 }

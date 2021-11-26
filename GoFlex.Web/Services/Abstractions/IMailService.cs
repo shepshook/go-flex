@@ -1,4 +1,4 @@
-using GoFlex.Core.Entities;
+﻿using GoFlex.Core.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Session = Stripe.Checkout.Session;
 

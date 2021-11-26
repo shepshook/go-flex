@@ -1,8 +1,10 @@
 ﻿using System;
+using GoFlex.ViewModels;
 using GoFlex.Web.Services.Abstractions;
 using GoFlex.Web.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Serilog;
 
 namespace GoFlex.Web.Controllers
 {
@@ -10,10 +12,12 @@ namespace GoFlex.Web.Controllers
     public class OrganizerController : Controller
     {
         private readonly IEventService _eventService;
+        private readonly ILogger _logger;
 
-        public OrganizerController(IEventService eventService)
+        public OrganizerController(IEventService eventService, ILogger logger)
         {
             _eventService = eventService;
+            _logger = logger.ForContext<OrganizerController>();
         }
 
         [Route("[controller]/[action]")]
@@ -59,6 +63,7 @@ namespace GoFlex.Web.Controllers
             var model = _eventService.ActualizeModel();
             model.Date = DateTime.Now.Date;
 
+
             return View(model);
         }
 
@@ -96,9 +101,16 @@ namespace GoFlex.Web.Controllers
 
             var ok = true;
             if (model.Id.HasValue)
+            {
                 ok = _eventService.UpdateEvent(model);
+                if (ok) 
+                    _logger.Here().Information("Event updated: {@Event}", model);
+            }
             else
+            {
                 _eventService.AddEvent(model);
+                _logger.Here().Information("New event created: {@Event}", model);
+            }
 
             if (!ok)
                 return NotFound();
@@ -156,6 +168,18 @@ namespace GoFlex.Web.Controllers
 
             model = _eventService.GetSingle(id);
             return View("EditEvent", model);
+        }
+
+        [Route("[controller]/{id:guid}")]
+        public IActionResult ConfirmTicket(Guid id)
+        {
+            var model = _eventService.ApproveTicket(id);
+
+            var userId = Guid.Parse(User.FindFirst("userId").Value);
+            if (model.EventPrice.Event.OrganizerId != userId)
+                model = new TicketApproveViewModel {Approved = false};
+
+            return View("TicketApproved", model);
         }
     }
 }
