@@ -176,7 +176,7 @@ namespace GoFlex.Web.Controllers
             var model = _eventService.ApproveTicket(id);
 
             var userId = Guid.Parse(User.FindFirst("userId").Value);
-            if (model.EventPrice.Event.OrganizerId != userId)
+            if (model.EventPrice?.Event.OrganizerId != userId)
                 model = new TicketApproveViewModel {Approved = false};
 
             return View("TicketApproved", model);

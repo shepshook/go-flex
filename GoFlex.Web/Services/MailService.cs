@@ -1,9 +1,5 @@
 ﻿using System;
-using Azure.Core;
-using Azure.Identity;
-using Azure.Security.KeyVault.Secrets;
 using GoFlex.Core.Entities;
-using GoFlex.Core.Repositories.Abstractions;
 using GoFlex.Web.Services.Abstractions;
 using MailKit.Net.Smtp;
 using Microsoft.AspNetCore.Mvc;
@@ -18,30 +14,14 @@ namespace GoFlex.Web.Services
     public class MailService : IMailService
     {
         private readonly IConfiguration _configuration;
-        private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger _logger;
         private readonly QRCodeGenerator _qrGenerator;
-        private readonly SecretClient _secretClient;
 
-        public MailService(IConfiguration configuration, IUnitOfWork unitOfWork, ILogger logger)
+        public MailService(IConfiguration configuration, ILogger logger)
         {
             _configuration = configuration;
-            _unitOfWork = unitOfWork;
             _logger = logger;
             _qrGenerator = new QRCodeGenerator();
-
-            var options = new SecretClientOptions
-            {
-                Retry =
-                {
-                    Delay= TimeSpan.FromSeconds(2),
-                    MaxDelay = TimeSpan.FromSeconds(16),
-                    MaxRetries = 5,
-                    Mode = RetryMode.Exponential
-                }
-            };
-
-            _secretClient = new SecretClient(new Uri("https://goflexsecrets.vault.azure.net/"), new DefaultAzureCredential(), options);
         }
 
         public void SendOrder(Order order, string requestBase, IUrlHelper url)
@@ -51,7 +31,7 @@ namespace GoFlex.Web.Services
             {
                 using var client = new SmtpClient();
                 client.Connect(_configuration["MailKit:SmtpServer"], int.Parse(_configuration["MailKit:Port"]), true);
-                client.Authenticate(_configuration["MailKit:Email"], _secretClient.GetSecret("EmailPassword").Value.Value);
+                client.Authenticate(_configuration["MailKit:Email"], _configuration["MailKit:Password"]);
                 client.Send(message);
                 client.Disconnect(true);
             }
