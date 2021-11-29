@@ -20,6 +20,7 @@ namespace GoFlex.Core.Entities
         public virtual Location Location { get; set; }
         public virtual User Organizer { get; set; }
         public virtual ICollection<EventPrice> Prices { get; set; }
+        public virtual ICollection<Comment> RootComments { get; set; }
 
         public string ShortDate => DateTime.ToString("d.MM.yyyy");
         public string ShortDateTime => DateTime.ToString("dddd, d.MM.yyy, H:mm");

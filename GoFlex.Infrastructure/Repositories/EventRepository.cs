@@ -48,6 +48,7 @@ namespace GoFlex.Infrastructure.Repositories
             dbSet.Include(x => x.Location)
                 .Include(x => x.EventCategory)
                 .Include(x => x.Organizer)
-                .Include(x => x.Prices);
+                .Include(x => x.Prices)
+                .Include(x => x.RootComments);
     }
 }

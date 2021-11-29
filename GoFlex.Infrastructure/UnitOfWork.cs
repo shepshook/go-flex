@@ -18,6 +18,7 @@ namespace GoFlex.Infrastructure
         private IUserRepository _userRepository;
         private ICityRepository _cityRepository;
         private IOrderItemSecretRepository _orderItemSecretRepository;
+        private ICommentRepository _commentRepository;
 
         private bool _isDisposed;
 
@@ -34,6 +35,7 @@ namespace GoFlex.Infrastructure
         public IUserRepository UserRepository => _userRepository ??= new UserRepository(Context);
         public ICityRepository CityRepository => _cityRepository ??= new CityRepository(Context);
         public IOrderItemSecretRepository OrderItemSecretRepository => _orderItemSecretRepository ??= new OrderItemSecretRepository(Context);
+        public ICommentRepository CommentRepository => _commentRepository ??= new CommentRepository(Context);
 
         public UnitOfWork(IConfiguration configuration, ILogger logger)
         {

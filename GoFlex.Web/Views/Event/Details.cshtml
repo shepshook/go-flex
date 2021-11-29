@@ -38,6 +38,14 @@
     </div>
 </form>
 
+<form class="comment d-flex justify-content-between w-100 my-5" method="post" asp-controller="Comment" asp-action="PostComment">
+    <input type="hidden" name="EventId" value="@Model.Id" />
+    <textarea class="form-control w-100 mr-3"name="Text" placeholder="Share your thoughts on this event..."></textarea>
+    <button type="submit" class="btn btn-success">Send</button>
+</form>
+
+@await Component.InvokeAsync("Comments", new {eventId = Model.Id})
+
 @section Scripts
 {
     <script type="text/javascript">
@@ -63,5 +71,21 @@
             else
                 paymentButton.removeAttribute("disabled");
         }
+
+        function sendComment(e){
+            e.preventDefault();
+            var url = $(this).closest('form').attr('action'),
+                data = $(this).closest('form').serialize();
+            $.ajax({
+                url: url,
+                type: 'post',
+                data: data,
+                success: () => window.location.reload()
+            });
+        }
+
+        document.querySelectorAll("form.comment").forEach(function(form) {
+            form.onsubmit = sendComment;
+        });
     </script>
 }
