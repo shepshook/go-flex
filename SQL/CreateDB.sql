@@ -320,7 +320,8 @@ CREATE TABLE [dbo].[Comment](
 	[CommentId] [uniqueidentifier] NOT NULL,
 	[ParentId] [uniqueidentifier] NULL,
 	[EventId] [int] NULL,
-	[IsUsed] [bit] NOT NULL,
+	[UserId] [uniqueidentifier] NOT NULL,
+	[Text] nvarchar(256) NOT NULL,
  CONSTRAINT [OrderItemSecret_pk] PRIMARY KEY NONCLUSTERED 
 (
 	[CommentId] ASC
@@ -342,4 +343,12 @@ ON DELETE CASCADE
 GO
 
 ALTER TABLE [dbo].[Comment] CHECK CONSTRAINT [Comment_Comment_CommentId_fk]
+GO
+
+ALTER TABLE [dbo].[Comment]  WITH CHECK ADD  CONSTRAINT [Comment_User_UserId_fk] FOREIGN KEY([UserId])
+REFERENCES [dbo].[User] ([UserId])
+ON DELETE CASCADE
+GO
+
+ALTER TABLE [dbo].[Comment] CHECK CONSTRAINT [Comment_User_UserId_fk]
 GO
